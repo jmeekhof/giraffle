@@ -1,6 +1,8 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.time.Duration
+import org.gradle.plugins.signing.Sign
+
 org.apache.tools.ant.DirectoryScanner.removeDefaultExclude("**/.gitignore")
 
 plugins {
@@ -257,6 +259,34 @@ publishing {
     }
 }
 
+gradle.taskGraph.whenReady {
+    val taskGraph: TaskExecutionGraph = this
+
+    if ( taskGraph.allTasks.any { it is Sign} ) {
+        allprojects {
+            ext["signing.keyId"] = System.getenv("GPG_KEY_ID")
+            ext["signing.secretKeyRingFile"] = System.getenv("GPG_KEY_LOCATION")
+            ext["signing.password"] = System.getenv("GPG_PASSPHRASE")
+        }
+    }
+
+    if ( taskGraph.allTasks.any { it.name == "build" || it.name == "assemble"} ) {
+        val disabledTasks = listOf( "signArchives", "signDocsJar", "signTestJar" )
+        disabledTasks.forEach { t ->
+            tasks.findByName(t)?.let {
+                it.enabled = false
+            }
+        }
+    }
+}
+
+/*
+signing
+{
+    sign configurations.archives
+}
+build.dependsOn.remove(signArchives)
+*/
 signing {
     useGpgCmd()
     sign(configurations.archives.get())
